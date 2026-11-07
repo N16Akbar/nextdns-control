@@ -90,9 +90,6 @@ KAuth::ActionReply DnsHelper::setprofile(const QVariantMap &arguments) {
     return failure(
         commandError(update, "The NextDNS profile could not be changed."));
   }
-  if (!active) {
-    return KAuth::ActionReply::SuccessReply();
-  }
   const CommandResult restart = run(NEXTDNS_EXECUTABLE, {"restart"});
   if (restart.success) {
     return KAuth::ActionReply::SuccessReply();
@@ -104,12 +101,20 @@ KAuth::ActionReply DnsHelper::setprofile(const QVariantMap &arguments) {
           ? run(NEXTDNS_EXECUTABLE, {"restart"})
           : CommandResult{false, QString(),
                           "The previous profile could not be restored."};
-  const QString rollbackError =
-      rollback.success && rollbackRestart.success
-          ? QString()
-          : " Rollback failed: " +
-                commandError(rollback.success ? rollbackRestart : rollback,
-                             "The previous profile could not be restored.");
+  QString rollbackError;
+  if (!rollback.success || !rollbackRestart.success) {
+    rollbackError = " Rollback failed: " +
+        commandError(rollback.success ? rollbackRestart : rollback,
+                     "The previous profile could not be restored.");
+  } else {
+    const CommandResult verifyConfig = run(NEXTDNS_EXECUTABLE, {"config"});
+    const CommandResult verifyStatus = run(NEXTDNS_EXECUTABLE, {"status"});
+    if (!verifyConfig.success ||
+        NetworkState::nextDnsProfile(verifyConfig.output) != previous ||
+        !verifyStatus.success || verifyStatus.output.trimmed() != "running") {
+      rollbackError = " Rollback failed: the previous profile is not active.";
+    }
+  }
   return failure(commandError(restart, "NextDNS could not be restarted.") +
                  rollbackError);
 }
@@ -134,8 +139,12 @@ KAuth::ActionReply DnsHelper::setmode(const QVariantMap &arguments) {
     if (activate.success) {
       return KAuth::ActionReply::SuccessReply();
     }
-    run(NEXTDNS_EXECUTABLE, {"stop"});
-    return failure(commandError(activate, "NextDNS activate failed."));
+    const CommandResult cleanup = run(NEXTDNS_EXECUTABLE, {"stop"});
+    const QString cleanupError = cleanup.success
+        ? QString()
+        : " Cleanup failed: " + commandError(cleanup, "NextDNS stop failed.");
+    return failure(commandError(activate, "NextDNS activate failed.") +
+                   cleanupError);
   }
 
   const CommandResult deactivate = run(NEXTDNS_EXECUTABLE, {"deactivate"});
