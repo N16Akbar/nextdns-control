@@ -36,6 +36,7 @@ public:
 Q_SIGNALS:
   void stateChanged();
   void profileSaved();
+  void notificationRequested(const QString &title, const QString &text);
 
 private:
   using ProcessCallback =
