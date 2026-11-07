@@ -18,17 +18,13 @@ namespace {
 constexpr int processTimeoutMs = 30000;
 }
 
-DnsController::DnsController(QObject *parent) : QObject(parent) { refresh(); }
+DnsController::DnsController(QObject *parent) : QObject(parent) {}
 
 bool DnsController::enabled() const { return m_enabled; }
 
 bool DnsController::busy() const { return m_busy; }
 
 bool DnsController::stateKnown() const { return m_stateKnown; }
-
-bool DnsController::needsRepair() const { return m_needsRepair; }
-
-bool DnsController::repairToNextDns() const { return m_repairToNextDns; }
 
 QString DnsController::profile() const { return m_profile; }
 
@@ -97,7 +93,6 @@ void DnsController::refresh() {
     return;
   }
   m_busy = true;
-  m_needsRepair = false;
   m_errorMessage.clear();
   m_profileError.clear();
   Q_EMIT stateChanged();
@@ -156,39 +151,42 @@ void DnsController::refreshMode() {
                             NetworkState::unsupportedDeviceMessage(type));
                         return;
                       }
-                      finishRefresh(false, true,
-                                    NetworkState::liveDnsServers(output));
+                      finishRefresh(false, NetworkState::liveDnsServers(output));
                     });
                 return;
               }
               runProcess(
                   RESOLVECTL_EXECUTABLE, {"dns", device},
-                  [this](bool ok, const QString &output, const QString &) {
-                    QString dnsServers =
-                        ok ? NetworkState::resolvedDnsServers(output)
-                           : QString();
-                    if (dnsServers.isEmpty()) {
-                      dnsServers = "127.0.0.1";
+                  [this](bool ok, const QString &output, const QString &error) {
+                    if (!ok) {
+                      failRefresh(error.isEmpty()
+                                      ? "The active DNS configuration is unavailable."
+                                      : error);
+                      return;
                     }
-                    finishRefresh(true, true, dnsServers);
+                    const QString dnsServers =
+                        NetworkState::resolvedDnsServers(output);
+                    if (dnsServers.isEmpty()) {
+                      failRefresh("No DNS servers were reported for the active link.");
+                      return;
+                    }
+                    finishRefresh(true, dnsServers);
                   });
             });
       });
 }
 
-void DnsController::finishRefresh(bool serviceActive, bool serviceEnabled,
+void DnsController::finishRefresh(bool serviceActive,
                                   const QString &dnsServers) {
-  const NetworkState::ModeState state = NetworkState::modeState(
-      serviceActive, serviceEnabled, NetworkState::usesNextDns(dnsServers));
+  const NetworkState::ModeState state =
+      NetworkState::modeState(serviceActive,
+                              NetworkState::usesNextDns(dnsServers));
   m_dnsSummary = NetworkState::dnsSummary(dnsServers);
   m_enabled = state.enabled;
-  m_repairToNextDns = state.repairToNextDns;
-  m_needsRepair = state.mismatch;
-  m_stateKnown = true;
-  m_errorMessage =
-      state.mismatch
-          ? "The NextDNS service and active DNS settings do not match."
-          : m_profileError;
+  m_stateKnown = !state.mismatch;
+  m_errorMessage = state.mismatch
+      ? "The NextDNS service and active DNS settings do not match."
+      : m_profileError;
   m_busy = false;
   Q_EMIT stateChanged();
 }
@@ -196,7 +194,6 @@ void DnsController::finishRefresh(bool serviceActive, bool serviceEnabled,
 void DnsController::failRefresh(const QString &errorMessage) {
   m_errorMessage = errorMessage;
   m_stateKnown = false;
-  m_needsRepair = false;
   m_busy = false;
   Q_EMIT stateChanged();
 }
@@ -233,9 +230,10 @@ void DnsController::runAction(const QString &name, const QVariantMap &arguments,
             authParent->deleteLater();
 
             if (completedJob->error()) {
-              m_errorMessage = completedJob->errorString();
               m_busy = false;
+              m_errorMessage = completedJob->errorString();
               Q_EMIT stateChanged();
+              refresh();
               return;
             }
 

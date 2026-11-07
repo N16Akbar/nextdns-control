@@ -6,7 +6,6 @@
 namespace NetworkState {
 struct ModeState {
   bool enabled;
-  bool repairToNextDns;
   bool mismatch;
 };
 
@@ -24,6 +23,5 @@ bool supportedDeviceType(const QString &type);
 QString unsupportedDeviceMessage(const QString &type);
 
 bool activeState(const QString &value, bool *state);
-bool enabledState(const QString &value, bool *state);
-ModeState modeState(bool serviceActive, bool serviceEnabled, bool localDns);
-} // namespace NetworkState
+ModeState modeState(bool serviceActive, bool localDns);
+}

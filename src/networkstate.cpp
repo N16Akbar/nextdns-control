@@ -78,12 +78,7 @@ QString NetworkState::dnsSummary(const QString &dnsOutput) {
 }
 
 bool NetworkState::supportedDeviceType(const QString &type) {
-  static const QStringList supported = {
-      "adsl",     "bluetooth", "bridge",     "bond",   "cdma",    "ethernet",
-      "generic",  "gsm",       "infiniband", "ipvlan", "macvlan", "modem",
-      "olpc-gsm", "team",      "vlan",       "wifi",   "wimax",
-  };
-  return supported.contains(type);
+  return type == "ethernet" || type == "wifi";
 }
 
 QString NetworkState::unsupportedDeviceMessage(const QString &type) {
@@ -92,12 +87,10 @@ QString NetworkState::unsupportedDeviceMessage(const QString &type) {
 }
 
 NetworkState::ModeState NetworkState::modeState(bool serviceActive,
-                                                bool serviceEnabled,
                                                 bool localDns) {
-  Q_UNUSED(serviceEnabled)
   const bool enabled = serviceActive && localDns;
   const bool nativeDns = !serviceActive && !localDns;
-  return {enabled, serviceActive, !enabled && !nativeDns};
+  return {enabled, !enabled && !nativeDns};
 }
 
 bool NetworkState::activeState(const QString &value, bool *state) {
@@ -107,19 +100,6 @@ bool NetworkState::activeState(const QString &value, bool *state) {
     return true;
   }
   if (normalized == "inactive") {
-    *state = false;
-    return true;
-  }
-  return false;
-}
-
-bool NetworkState::enabledState(const QString &value, bool *state) {
-  const QString normalized = value.trimmed();
-  if (normalized == "enabled") {
-    *state = true;
-    return true;
-  }
-  if (normalized == "disabled" || normalized == "static") {
     *state = false;
     return true;
   }
