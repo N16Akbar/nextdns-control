@@ -6,6 +6,7 @@ import org.kde.kirigami as Kirigami
 import org.kde.plasma.components as PlasmaComponents
 import org.kde.plasma.extras as PlasmaExtras
 import org.kde.plasma.plasmoid
+import org.kde.notification
 import io.github.n16akbar.nextdnscontrol
 
 PlasmoidItem {
@@ -16,8 +17,19 @@ PlasmoidItem {
     toolTipMainText: "NextDNS Control"
     toolTipSubText: controller.busy ? "Applying DNS mode" : controller.errorMessage.length > 0 ? controller.errorMessage : !controller.stateKnown ? "DNS mode is unknown" : controller.enabled ? "NextDNS is enabled" : "Native DNS is enabled"
 
+    Notification {
+        id: operationNotification
+        componentName: "plasma_workspace"
+        eventId: "notification"
+        iconName: "preferences-system-network-server-dns"
+    }
     DnsController {
         id: controller
+        onNotificationRequested: function(title, text) {
+            operationNotification.title = title
+            operationNotification.text = text
+            operationNotification.sendEvent()
+        }
     }
 
     onExpandedChanged: function () {

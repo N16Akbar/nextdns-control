@@ -198,51 +198,51 @@ void DnsController::failRefresh(const QString &errorMessage) {
   Q_EMIT stateChanged();
 }
 
-void DnsController::runAction(const QString &name, const QVariantMap &arguments,
+void DnsController::runAction(const QString &name,
+                              const QVariantMap &arguments,
                               bool profileAction) {
   m_busy = true;
   m_errorMessage.clear();
   Q_EMIT stateChanged();
-
   QScreen *screen = QGuiApplication::primaryScreen();
   auto *authParent = new QWindow();
-
   if (screen) {
     const QPoint center = screen->availableGeometry().center();
     authParent->setScreen(screen);
     authParent->setGeometry(center.x(), center.y(), 1, 1);
   }
-
   authParent->setFlags(Qt::Tool | Qt::FramelessWindowHint |
                        Qt::WindowDoesNotAcceptFocus);
   authParent->setOpacity(0);
   authParent->show();
-
   KAuth::Action action(name);
   action.setHelperId("io.github.n16akbar.nextdnscontrol");
   action.setArguments(arguments);
   action.setParentWindow(authParent);
-
   KAuth::ExecuteJob *job = action.execute();
-  connect(job, &KJob::result,
-          [this, profileAction, authParent](KJob *completedJob) {
+  connect(job, &KJob::result, this,
+          [this, authParent, arguments, profileAction](KJob *completedJob) {
             authParent->hide();
             authParent->deleteLater();
-
             if (completedJob->error()) {
               m_busy = false;
               m_errorMessage = completedJob->errorString();
               Q_EMIT stateChanged();
+              Q_EMIT notificationRequested("NextDNS operation failed",
+                                           m_errorMessage);
               refresh();
               return;
             }
-
             m_busy = false;
-
             if (profileAction) {
               Q_EMIT profileSaved();
+            } else {
+              const bool enabled = arguments.value("enabled").toBool();
+              Q_EMIT notificationRequested(
+                  enabled ? "NextDNS enabled" : "NextDNS disabled",
+                  enabled ? "DNS requests are now using NextDNS."
+                          : "Native network DNS has been restored.");
             }
-
             refresh();
           });
   job->start();
