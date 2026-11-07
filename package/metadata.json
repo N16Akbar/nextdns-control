@@ -1,0 +1,14 @@
+{
+    "KPlugin": {
+        "Authors": [{"Name": "N16Akbar"}],
+        "Category": "System Information",
+        "Description": "Switches between NextDNS and native network DNS.",
+        "Icon": "preferences-system-network-server-dns",
+        "Id": "io.github.n16akbar.nextdnscontrol",
+        "Name": "NextDNS Control",
+        "Version": "1.0"
+    },
+    "X-Plasma-API-Minimum-Version": "6.0",
+    "X-Plasma-NotificationAreaCategory": "SystemServices",
+    "KPackageStructure": "Plasma/Applet"
+}
