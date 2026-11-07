@@ -5,6 +5,7 @@ import io.github.n16akbar.nextdnscontrol
 
 Kirigami.FormLayout {
     id: root
+    Component.onCompleted: controller.refresh()
 
     property bool saved: false
     property bool edited: false
@@ -31,6 +32,7 @@ Kirigami.FormLayout {
         maximumLength: 6
         placeholderText: "abcdef"
         inputMethodHints: Qt.ImhNoPredictiveText | Qt.ImhNoAutoUppercase
+        validator: RegularExpressionValidator { regularExpression: /^[0-9a-fA-F]{6}$/ }
         Accessible.name: "NextDNS profile ID"
 
         onTextEdited: {
@@ -44,7 +46,7 @@ Kirigami.FormLayout {
     Controls.Button {
         Kirigami.FormData.label: ""
         text: controller.busy ? "Applying" : "Apply"
-        enabled: !controller.busy && profileField.text.length === 6
+        enabled: !controller.busy && profileField.acceptableInput
 
         onClicked: controller.setProfile(profileField.text)
     }

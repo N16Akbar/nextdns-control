@@ -10,6 +10,7 @@ import io.github.n16akbar.nextdnscontrol
 
 PlasmoidItem {
     id: root
+    property bool profileEdited: false
 
     Plasmoid.icon: controller.enabled ? "security-high-symbolic" : "security-low-symbolic"
     toolTipMainText: "NextDNS Control"
@@ -109,18 +110,20 @@ PlasmoidItem {
                             id: profileField
 
                             Layout.fillWidth: true
-                            text: controller.profile
+                            text: root.profileEdited ? text : controller.profile
                             maximumLength: 6
                             placeholderText: "abcdef"
                             enabled: controller.enabled && !controller.busy
                             inputMethodHints: Qt.ImhNoPredictiveText | Qt.ImhNoAutoUppercase
+                            validator: RegularExpressionValidator { regularExpression: /^[0-9a-fA-F]{6}$/ }
+                            onTextEdited: root.profileEdited = true
                             Accessible.name: "NextDNS profile ID"
                             onAccepted: controller.setProfile(text)
                         }
 
                         PlasmaComponents.Button {
                             text: controller.busy ? "Applying" : "Apply"
-                            enabled: controller.enabled && !controller.busy && profileField.text.length === 6 && profileField.text.toLowerCase() !== controller.profile
+                            enabled: controller.enabled && !controller.busy && profileField.acceptableInput && profileField.text.toLowerCase() !== controller.profile
                             Accessible.name: "Apply NextDNS profile"
                             onClicked: controller.setProfile(profileField.text)
                         }
