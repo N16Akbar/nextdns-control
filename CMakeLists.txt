@@ -14,7 +14,7 @@ include(KDEInstallDirs6)
 include(KDECMakeSettings NO_POLICY_SCOPE)
 include(KDECompilerSettings NO_POLICY_SCOPE)
 
-find_package(Qt6 REQUIRED COMPONENTS Core Gui Qml)
+find_package(Qt6 REQUIRED COMPONENTS Core Gui Qml Test)
 find_package(KF6 REQUIRED COMPONENTS Auth CoreAddons)
 find_package(Plasma REQUIRED COMPONENTS Plasma)
 
@@ -55,10 +55,6 @@ install(FILES
 add_executable(nextdnscontrolhelper
     src/helper.cpp
     src/helper.h
-    src/stash.cpp
-    src/stash.h
-    src/networkcommands.cpp
-    src/networkcommands.h
     src/networkstate.cpp
     src/networkstate.h
 )
@@ -71,16 +67,11 @@ kauth_install_actions(io.github.n16akbar.nextdnscontrol io.github.n16akbar.nextd
 if(BUILD_TESTING)
     add_executable(networkstatetest
         tests/networkstatetest.cpp
-        src/stash.cpp
-        src/stash.h
-        src/networkcommands.cpp
-        src/networkcommands.h
-        src/networkstate.cpp
+                        src/networkstate.cpp
         src/networkstate.h
     )
     target_include_directories(networkstatetest PRIVATE ${CMAKE_CURRENT_SOURCE_DIR}/src ${CMAKE_CURRENT_BINARY_DIR}/generated)
-    target_link_libraries(networkstatetest PRIVATE Qt6::Core)
-    target_compile_options(networkstatetest PRIVATE -UNDEBUG)
+    target_link_libraries(networkstatetest PRIVATE Qt6::Core Qt6::Test)
     add_test(NAME networkstatetest COMMAND networkstatetest)
 endif()
 
