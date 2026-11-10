@@ -1,9 +1,9 @@
 [io.github.n16akbar.nextdnscontrol.setmode]
-Name=Change DNS Mode
-Description=Authentication is required to switch between NextDNS and native DNS
+Name=Change DNS mode
+Description=Authentication is required to switch between NextDNS and the default network DNS
 Policy=auth_admin
 
 [io.github.n16akbar.nextdnscontrol.setprofile]
-Name=Change NextDNS Profile
-Description=Authentication is required to change the NextDNS profile
+Name=Change NextDNS profile
+Description=Authentication is required to change the NextDNS profile ID
 Policy=auth_admin

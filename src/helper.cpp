@@ -25,10 +25,10 @@ static CommandResult run(const QString &program, const QStringList &arguments) {
       return {
           false,
           QString(),
-          "The command did not stop after timing out.",
+          "The operation could not be stopped after it timed out.",
       };
     }
-    return {false, QString(), "The command timed out."};
+    return {false, QString(), "The operation timed out."};
   }
 
   const QString output = QString::fromUtf8(process.readAllStandardOutput());
@@ -55,85 +55,55 @@ static KAuth::ActionReply failure(const QString &description) {
   return reply;
 }
 
-KAuth::ActionReply DnsHelper::setprofile(const QVariantMap &arguments) {
+KAuth::ActionReply DnsHelper::setprofile(
+    const QVariantMap &arguments) {
   QLockFile lock("/run/nextdns-control.lock");
+
   if (!lock.tryLock()) {
-    return failure("Another NextDNS operation is running.");
+    return failure(
+        "Another NextDNS change is already in progress.");
   }
+
   const QString profile =
-      arguments.value("profile").toString().trimmed().toLower();
+      arguments.value("profile")
+          .toString()
+          .trimmed()
+          .toLower();
+
   if (!arguments.contains("profile") ||
       !NetworkState::validNextDnsProfile(profile)) {
-    return failure("Enter a valid six-character NextDNS profile ID.");
-  }
-  const CommandResult config = run(NEXTDNS_EXECUTABLE, {"config"});
-  const QString previous = NetworkState::nextDnsProfile(config.output);
-  if (!config.success || previous.isEmpty()) {
     return failure(
-        commandError(config, "The current NextDNS profile could not be read."));
+        "Enter a six-character NextDNS profile ID using 0-9 or A-F.");
   }
-  const CommandResult activeResult =
-      run(SYSTEMCTL_EXECUTABLE,
-          {"show", "--property=ActiveState", "--value", "nextdns.service"});
-  bool active = false;
-  if (!activeResult.success ||
-      !NetworkState::activeState(activeResult.output, &active)) {
-    return failure(commandError(
-        activeResult, "The NextDNS service state could not be read."));
-  }
-  if (!active) {
-    return failure("Enable NextDNS before changing its profile.");
-  }
+
   const CommandResult update =
-      run(NEXTDNS_EXECUTABLE, {"config", "set", "-profile=" + profile});
+      run(NEXTDNS_EXECUTABLE,
+          {"config", "set", "-profile=" + profile});
+
   if (!update.success) {
-    return failure(
-        commandError(update, "The NextDNS profile could not be changed."));
+    return failure(commandError(
+        update,
+        "The NextDNS profile ID could not be saved."));
   }
-  const CommandResult restart = run(NEXTDNS_EXECUTABLE, {"restart"});
-  if (restart.success) {
-    return KAuth::ActionReply::SuccessReply();
-  }
-  const CommandResult rollback =
-      run(NEXTDNS_EXECUTABLE, {"config", "set", "-profile=" + previous});
-  const CommandResult rollbackRestart =
-      rollback.success
-          ? run(NEXTDNS_EXECUTABLE, {"restart"})
-          : CommandResult{false, QString(),
-                          "The previous profile could not be restored."};
-  QString rollbackError;
-  if (!rollback.success || !rollbackRestart.success) {
-    rollbackError = " Rollback failed: " +
-        commandError(rollback.success ? rollbackRestart : rollback,
-                     "The previous profile could not be restored.");
-  } else {
-    const CommandResult verifyConfig = run(NEXTDNS_EXECUTABLE, {"config"});
-    const CommandResult verifyStatus = run(NEXTDNS_EXECUTABLE, {"status"});
-    if (!verifyConfig.success ||
-        NetworkState::nextDnsProfile(verifyConfig.output) != previous ||
-        !verifyStatus.success || verifyStatus.output.trimmed() != "running") {
-      rollbackError = " Rollback failed: the previous profile is not active.";
-    }
-  }
-  return failure(commandError(restart, "NextDNS could not be restarted.") +
-                 rollbackError);
+
+  return KAuth::ActionReply::SuccessReply();
 }
 
 KAuth::ActionReply DnsHelper::setmode(const QVariantMap &arguments) {
   QLockFile lock("/run/nextdns-control.lock");
   if (!lock.tryLock()) {
-    return failure("Another NextDNS operation is running.");
+    return failure("Another NextDNS change is already in progress.");
   }
   if (!arguments.contains("enabled") ||
       arguments.value("enabled").metaType().id() != QMetaType::Bool) {
-    return failure("The requested DNS mode is invalid.");
+    return failure("The requested DNS mode is not valid.");
   }
 
   const bool enabled = arguments.value("enabled").toBool();
   if (enabled) {
     const CommandResult start = run(NEXTDNS_EXECUTABLE, {"start"});
     if (!start.success) {
-      return failure(commandError(start, "NextDNS start failed."));
+      return failure(commandError(start, "NextDNS could not be started."));
     }
     const CommandResult activate = run(NEXTDNS_EXECUTABLE, {"activate"});
     if (activate.success) {
@@ -142,44 +112,15 @@ KAuth::ActionReply DnsHelper::setmode(const QVariantMap &arguments) {
     const CommandResult cleanup = run(NEXTDNS_EXECUTABLE, {"stop"});
     const QString cleanupError = cleanup.success
         ? QString()
-        : " Cleanup failed: " + commandError(cleanup, "NextDNS stop failed.");
-    return failure(commandError(activate, "NextDNS activate failed.") +
+        : " NextDNS also could not be stopped: " + commandError(cleanup, "No additional error details were provided.");
+    return failure(commandError(activate, "NextDNS could not be activated.") +
                    cleanupError);
   }
 
   const CommandResult deactivate = run(NEXTDNS_EXECUTABLE, {"deactivate"});
   if (!deactivate.success) {
-    return failure(commandError(deactivate, "NextDNS deactivate failed."));
+    return failure(commandError(deactivate, "NextDNS could not be deactivated."));
   }
-  const CommandResult route =
-      run(IP_EXECUTABLE, {"-o", "route", "get", "1.1.1.1"});
-  const QString device = NetworkState::defaultDevice(route.output);
-  if (!route.success || device.isEmpty()) {
-    return failure(commandError(
-        route, "The default network device could not be determined."));
-  }
-  const CommandResult revert = run(RESOLVECTL_EXECUTABLE, {"revert", device});
-  if (!revert.success) {
-    return failure(commandError(revert, "The resolver could not be restored."));
-  }
-  const CommandResult uuidResult = run(
-      NMCLI_EXECUTABLE, {"-g", "GENERAL.CON-UUID", "device", "show", device});
-  const QString uuid = uuidResult.output.trimmed();
-  if (!uuidResult.success || uuid.isEmpty()) {
-    return failure(commandError(
-        uuidResult, "The active network connection could not be determined."));
-  }
-  const CommandResult reconnect =
-      run(NMCLI_EXECUTABLE, {"connection", "up", "uuid", uuid});
-  if (!reconnect.success) {
-    return failure(commandError(
-        reconnect, "The native DNS connection could not be reactivated."));
-  }
-  const CommandResult stop = run(NEXTDNS_EXECUTABLE, {"stop"});
-  if (!stop.success) {
-    return failure(commandError(stop, "NextDNS stop failed."));
-  }
-
   return KAuth::ActionReply::SuccessReply();
 }
 

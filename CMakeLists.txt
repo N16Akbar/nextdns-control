@@ -6,25 +6,31 @@ set(CMAKE_CXX_STANDARD 17)
 set(CMAKE_CXX_STANDARD_REQUIRED ON)
 set(QT_MAJOR_VERSION 6)
 
-find_package(ECM REQUIRED NO_MODULE)
+find_package(ECM 6.0 REQUIRED NO_MODULE)
 set(CMAKE_MODULE_PATH ${ECM_MODULE_PATH})
 
 include(CTest)
 include(KDEInstallDirs6)
 include(KDECMakeSettings NO_POLICY_SCOPE)
+set(KDE_COMPILERSETTINGS_LEVEL 5.84)
 include(KDECompilerSettings NO_POLICY_SCOPE)
 
-find_package(Qt6 REQUIRED COMPONENTS Core Gui Qml Test)
-find_package(KF6 REQUIRED COMPONENTS Auth CoreAddons)
-find_package(Plasma REQUIRED COMPONENTS Plasma)
+find_package(Qt6 6.5 REQUIRED COMPONENTS Core Gui Qml Test)
+find_package(KF6 6.0 REQUIRED COMPONENTS Auth CoreAddons)
+find_package(Plasma 6.0 REQUIRED COMPONENTS Plasma)
 
-find_program(NEXTDNS_EXECUTABLE NAMES nextdns REQUIRED)
+set(NEXTDNS_EXECUTABLE "${CMAKE_INSTALL_FULL_LIBEXECDIR}/nextdns-control-resolved")
 find_program(NMCLI_EXECUTABLE NAMES nmcli REQUIRED)
 find_program(IP_EXECUTABLE NAMES ip REQUIRED)
 find_program(SYSTEMCTL_EXECUTABLE NAMES systemctl REQUIRED)
 find_program(RESOLVECTL_EXECUTABLE NAMES resolvectl REQUIRED)
 
 configure_file(src/paths.h.in generated/paths.h @ONLY)
+
+install(PROGRAMS scripts/nextdns-resolved
+    DESTINATION ${CMAKE_INSTALL_LIBEXECDIR}
+    RENAME nextdns-control-resolved
+)
 
 qt_policy(SET QTP0001 NEW)
 
