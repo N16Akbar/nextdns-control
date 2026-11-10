@@ -12,17 +12,24 @@ QString NetworkState::defaultDevice(const QString &routeOutput) {
 bool NetworkState::usesNextDns(const QString &dnsOutput) {
   const QStringList servers =
       dnsOutput.split(QRegularExpression("\\s+"), Qt::SkipEmptyParts);
-  if (servers.isEmpty()) {
-    return false;
-  }
 
-  for (const QString &server : servers) {
-    if (server != "127.0.0.1" && server != "::1") {
-      return false;
+  for (QString server : servers) {
+    server.remove('|');
+
+    const qsizetype hash = server.indexOf('#');
+    if (hash >= 0) {
+      server.truncate(hash);
+    }
+
+    if (server.startsWith("45.90.28.") ||
+        server.startsWith("45.90.30.") ||
+        server.startsWith("2a07:a8c0:") ||
+        server.startsWith("2a07:a8c1:")) {
+      return true;
     }
   }
 
-  return true;
+  return false;
 }
 
 QString NetworkState::nextDnsProfile(const QString &output) {
@@ -74,7 +81,7 @@ QString NetworkState::dnsSummary(const QString &dnsOutput) {
   QStringList servers =
       dnsOutput.split(QRegularExpression("\\s+"), Qt::SkipEmptyParts);
   servers.removeAll("|");
-  return servers.isEmpty() ? QString("None reported") : servers.join(", ");
+  return servers.isEmpty() ? QString("No DNS servers reported") : servers.join(", ");
 }
 
 bool NetworkState::supportedDeviceType(const QString &type) {
@@ -82,15 +89,21 @@ bool NetworkState::supportedDeviceType(const QString &type) {
 }
 
 QString NetworkState::unsupportedDeviceMessage(const QString &type) {
-  return QString("The default network device type \"%1\" is not supported.")
+  return QString("The active network device type \"%1\" is not supported.")
       .arg(type);
 }
 
-NetworkState::ModeState NetworkState::modeState(bool serviceActive,
-                                                bool localDns) {
-  const bool enabled = serviceActive && localDns;
-  const bool nativeDns = !serviceActive && !localDns;
-  return {enabled, !enabled && !nativeDns};
+NetworkState::ModeState NetworkState::modeState(
+    bool resolverActive, bool nextDnsAddressesVisible) {
+  Q_UNUSED(nextDnsAddressesVisible)
+  return {resolverActive, false};
+}
+
+QString NetworkState::mismatchMessage(
+    bool resolverActive, bool nextDnsAddressesVisible) {
+  Q_UNUSED(resolverActive)
+  Q_UNUSED(nextDnsAddressesVisible)
+  return QString();
 }
 
 bool NetworkState::activeState(const QString &value, bool *state) {

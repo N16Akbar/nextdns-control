@@ -24,4 +24,5 @@ QString unsupportedDeviceMessage(const QString &type);
 
 bool activeState(const QString &value, bool *state);
 ModeState modeState(bool serviceActive, bool localDns);
+QString mismatchMessage(bool serviceActive, bool localDns);
 }

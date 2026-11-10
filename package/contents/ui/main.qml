@@ -14,8 +14,8 @@ PlasmoidItem {
     property bool profileEdited: false
 
     Plasmoid.icon: controller.enabled ? "security-high-symbolic" : "security-low-symbolic"
-    toolTipMainText: "NextDNS Control"
-    toolTipSubText: controller.busy ? "Applying DNS mode" : controller.errorMessage.length > 0 ? controller.errorMessage : !controller.stateKnown ? "DNS mode is unknown" : controller.enabled ? "NextDNS is enabled" : "Native DNS is enabled"
+    toolTipMainText: "NextDNS Switcher"
+    toolTipSubText: controller.busy ? "Changing DNS mode..." : controller.errorMessage.length > 0 ? controller.errorMessage : controller.warningMessage.length > 0 ? controller.warningMessage : !controller.stateKnown ? "DNS mode could not be determined" : controller.enabled ? "Using NextDNS" : "Using default network DNS"
 
     Notification {
         id: operationNotification
@@ -29,6 +29,10 @@ PlasmoidItem {
             operationNotification.title = title
             operationNotification.text = text
             operationNotification.sendEvent()
+        }
+
+        onProfileSaved: {
+            root.profileEdited = false
         }
     }
 
@@ -66,14 +70,14 @@ PlasmoidItem {
 
                         PlasmaComponents.Label {
                             Layout.fillWidth: true
-                            text: "DNS Mode"
+                            text: "DNS mode"
                             textFormat: Text.PlainText
                             elide: Text.ElideRight
                         }
 
                         PlasmaComponents.Label {
                             Layout.fillWidth: true
-                            text: !controller.stateKnown ? "Unknown" : controller.enabled ? "NextDNS" : "Native DNS"
+                            text: !controller.stateKnown ? "Unknown" : controller.enabled ? "NextDNS" : "Default network DNS"
                             color: Kirigami.Theme.disabledTextColor
                             textFormat: Text.PlainText
                             elide: Text.ElideRight
@@ -93,7 +97,7 @@ PlasmoidItem {
                     PlasmaComponents.Switch {
                         checkable: false
                         checked: controller.enabled
-                        enabled: !controller.busy && controller.stateKnown
+                        enabled: !controller.busy && controller.stateKnown && controller.profile.length === 6
                         Accessible.name: "Use NextDNS"
                         onClicked: controller.setEnabled(!controller.enabled)
                     }
@@ -109,7 +113,7 @@ PlasmoidItem {
 
                     PlasmaComponents.Label {
                         Layout.fillWidth: true
-                        text: "NextDNS Profile"
+                        text: "NextDNS profile"
                         textFormat: Text.PlainText
                         elide: Text.ElideRight
                     }
@@ -125,7 +129,7 @@ PlasmoidItem {
                             text: root.profileEdited ? text : controller.profile
                             maximumLength: 6
                             placeholderText: "abcdef"
-                            enabled: controller.enabled && !controller.busy
+                            enabled: !controller.busy
                             inputMethodHints: Qt.ImhNoPredictiveText | Qt.ImhNoAutoUppercase
                             validator: RegularExpressionValidator { regularExpression: /^[0-9a-fA-F]{6}$/ }
                             onTextEdited: root.profileEdited = true
@@ -134,18 +138,18 @@ PlasmoidItem {
                         }
 
                         PlasmaComponents.Button {
-                            text: controller.busy ? "Applying" : "Apply"
-                            enabled: controller.enabled && !controller.busy && profileField.acceptableInput && profileField.text.toLowerCase() !== controller.profile
-                            Accessible.name: "Apply NextDNS profile"
+                            text: controller.busy ? "Saving..." : "Save"
+                            enabled: !controller.busy && profileField.acceptableInput && profileField.text.toLowerCase() !== controller.profile
+                            Accessible.name: "Save NextDNS profile ID"
                             onClicked: controller.setProfile(profileField.text)
                         }
                     }
-
                     Kirigami.InlineMessage {
                         Layout.fillWidth: true
-                        visible: controller.stateKnown && !controller.enabled
+                        visible: controller.stateKnown
+                                 && controller.profile.length === 0
                         type: Kirigami.MessageType.Information
-                        text: "Enable NextDNS before changing its profile."
+                        text: "Enter and save your NextDNS profile ID, then enable NextDNS."
                     }
                 }
             }
@@ -156,6 +160,14 @@ PlasmoidItem {
                 visible: controller.errorMessage.length > 0
                 type: Kirigami.MessageType.Error
                 text: controller.errorMessage
+            }
+
+            Kirigami.InlineMessage {
+                Layout.fillWidth: true
+                Layout.margins: Kirigami.Units.smallSpacing
+                visible: controller.warningMessage.length > 0
+                type: Kirigami.MessageType.Warning
+                text: controller.warningMessage
             }
 
             PlasmaComponents.BusyIndicator {

@@ -18,7 +18,9 @@ namespace {
 constexpr int processTimeoutMs = 30000;
 }
 
-DnsController::DnsController(QObject *parent) : QObject(parent) {}
+DnsController::DnsController(QObject *parent) : QObject(parent) {
+  QTimer::singleShot(0, this, &DnsController::refresh);
+}
 
 bool DnsController::enabled() const { return m_enabled; }
 
@@ -31,6 +33,8 @@ QString DnsController::profile() const { return m_profile; }
 QString DnsController::dnsSummary() const { return m_dnsSummary; }
 
 QString DnsController::errorMessage() const { return m_errorMessage; }
+
+QString DnsController::warningMessage() const { return m_warning; }
 
 void DnsController::runProcess(const QString &program,
                                const QStringList &arguments,
@@ -68,7 +72,7 @@ void DnsController::runProcess(const QString &program,
             QString::fromUtf8(process->readAllStandardOutput()).trimmed();
         const QString error =
             *timedOut
-                ? QString("The command timed out.")
+                ? QString("The operation timed out.")
                 : QString::fromUtf8(process->readAllStandardError()).trimmed();
         const bool success =
             !*timedOut && exitStatus == QProcess::NormalExit && exitCode == 0;
@@ -95,6 +99,7 @@ void DnsController::refresh() {
   m_busy = true;
   m_errorMessage.clear();
   m_profileError.clear();
+  m_warning.clear();
   Q_EMIT stateChanged();
   runProcess(NEXTDNS_EXECUTABLE, {"config"},
              [this](bool success, const QString &output, const QString &error) {
@@ -103,7 +108,7 @@ void DnsController::refresh() {
                  m_profile = profile;
                } else {
                  m_profileError = error.isEmpty()
-                                      ? "The NextDNS profile is unavailable."
+                                      ? QString()
                                       : error;
                }
                refreshMode();
@@ -118,7 +123,7 @@ void DnsController::refreshMode() {
         const bool running = status == "running";
         const bool stopped = status == "stopped";
         if (!ok || (!running && !stopped)) {
-          failRefresh(error.isEmpty() ? "The NextDNS status is unavailable."
+          failRefresh(error.isEmpty() ? "The NextDNS status could not be read."
                                       : error);
           return;
         }
@@ -129,70 +134,86 @@ void DnsController::refreshMode() {
               const QString device = NetworkState::defaultDevice(output);
               if (!ok || device.isEmpty()) {
                 failRefresh(error.isEmpty()
-                                ? "The default network device is unavailable."
+                                ? "The active network device could not be determined."
                                 : error);
-                return;
-              }
-              if (!running) {
-                runProcess(
-                    NMCLI_EXECUTABLE, NetworkState::liveDnsArguments(device),
-                    [this](bool ok, const QString &output,
-                           const QString &error) {
-                      if (!ok) {
-                        failRefresh(
-                            error.isEmpty()
-                                ? "The native DNS configuration is unavailable."
-                                : error);
-                        return;
-                      }
-                      const QString type = NetworkState::deviceType(output);
-                      if (!NetworkState::supportedDeviceType(type)) {
-                        failRefresh(
-                            NetworkState::unsupportedDeviceMessage(type));
-                        return;
-                      }
-                      finishRefresh(false, NetworkState::liveDnsServers(output));
-                    });
                 return;
               }
               runProcess(
                   RESOLVECTL_EXECUTABLE, {"dns", device},
-                  [this](bool ok, const QString &output, const QString &error) {
-                    if (!ok) {
-                      failRefresh(error.isEmpty()
-                                      ? "The active DNS configuration is unavailable."
-                                      : error);
-                      return;
-                    }
+                  [this, running, device](bool ok, const QString &output,
+                                           const QString &error) {
                     const QString dnsServers =
-                        NetworkState::resolvedDnsServers(output);
-                    if (dnsServers.isEmpty()) {
-                      failRefresh("No DNS servers were reported for the active link.");
+                        ok ? NetworkState::resolvedDnsServers(output)
+                           : QString();
+                    if (!dnsServers.isEmpty()) {
+                      finishRefresh(running, dnsServers);
                       return;
                     }
-                    finishRefresh(true, dnsServers);
+
+                    if (running) {
+                      const QString profileHost =
+                          m_profile + ".dns.nextdns.io";
+                      const QString globalServers =
+                          "45.90.28.0#" + profileHost + " "
+                          "45.90.30.0#" + profileHost + " "
+                          "2a07:a8c0::#" + profileHost + " "
+                          "2a07:a8c1::#" + profileHost;
+
+                      finishRefresh(true, globalServers);
+                      return;
+                    }
+
+                    refreshLiveDns(false, device, error);
                   });
             });
       });
 }
 
+void DnsController::refreshLiveDns(bool serviceActive, const QString &device,
+                                   const QString &resolvedError) {
+  runProcess(
+      NMCLI_EXECUTABLE, NetworkState::liveDnsArguments(device),
+      [this, serviceActive, resolvedError](bool ok, const QString &output,
+                                           const QString &error) {
+        if (!ok) {
+          failRefresh(error.isEmpty()
+                          ? (resolvedError.isEmpty()
+                                 ? "The active DNS configuration is unavailable."
+                                 : resolvedError)
+                          : error);
+          return;
+        }
+        const QString type = NetworkState::deviceType(output);
+        if (!NetworkState::supportedDeviceType(type)) {
+          failRefresh(NetworkState::unsupportedDeviceMessage(type));
+          return;
+        }
+        const QString dnsServers = NetworkState::liveDnsServers(output);
+        if (dnsServers.isEmpty()) {
+          failRefresh("No DNS servers were reported for the active link.");
+          return;
+        }
+        finishRefresh(serviceActive, dnsServers);
+      });
+}
+
 void DnsController::finishRefresh(bool serviceActive,
                                   const QString &dnsServers) {
+  const bool localDns = NetworkState::usesNextDns(dnsServers);
   const NetworkState::ModeState state =
-      NetworkState::modeState(serviceActive,
-                              NetworkState::usesNextDns(dnsServers));
+      NetworkState::modeState(serviceActive, localDns);
   m_dnsSummary = NetworkState::dnsSummary(dnsServers);
   m_enabled = state.enabled;
-  m_stateKnown = !state.mismatch;
-  m_errorMessage = state.mismatch
-      ? "The NextDNS service and active DNS settings do not match."
-      : m_profileError;
+  m_stateKnown = true;
+  m_warning = NetworkState::mismatchMessage(serviceActive, localDns);
+  m_errorMessage = m_profileError;
   m_busy = false;
   Q_EMIT stateChanged();
 }
 
 void DnsController::failRefresh(const QString &errorMessage) {
   m_errorMessage = errorMessage;
+  m_warning.clear();
   m_stateKnown = false;
   m_busy = false;
   Q_EMIT stateChanged();
@@ -203,6 +224,7 @@ void DnsController::runAction(const QString &name,
                               bool profileAction) {
   m_busy = true;
   m_errorMessage.clear();
+  m_warning.clear();
   Q_EMIT stateChanged();
   QScreen *screen = QGuiApplication::primaryScreen();
   auto *authParent = new QWindow();
@@ -228,7 +250,7 @@ void DnsController::runAction(const QString &name,
               m_busy = false;
               m_errorMessage = completedJob->errorString();
               Q_EMIT stateChanged();
-              Q_EMIT notificationRequested("NextDNS operation failed",
+              Q_EMIT notificationRequested("NextDNS change failed",
                                            m_errorMessage);
               refresh();
               return;
@@ -240,8 +262,8 @@ void DnsController::runAction(const QString &name,
               const bool enabled = arguments.value("enabled").toBool();
               Q_EMIT notificationRequested(
                   enabled ? "NextDNS enabled" : "NextDNS disabled",
-                  enabled ? "DNS requests are now using NextDNS."
-                          : "Native network DNS has been restored.");
+                  enabled ? "Your DNS requests are now using NextDNS."
+                          : "The default network DNS settings have been restored.");
             }
             refresh();
           });
@@ -252,31 +274,52 @@ void DnsController::setEnabled(bool enabled) {
   if (m_busy || !m_stateKnown) {
     return;
   }
+
+  if (enabled &&
+      !NetworkState::validNextDnsProfile(m_profile)) {
+    m_errorMessage =
+        "Enter and save your six-character NextDNS profile ID first.";
+    Q_EMIT stateChanged();
+    return;
+  }
+
   QVariantMap arguments;
   arguments.insert("enabled", enabled);
-  runAction("io.github.n16akbar.nextdnscontrol.setmode", arguments, false);
+
+  runAction(
+      "io.github.n16akbar.nextdnscontrol.setmode",
+      arguments,
+      false);
 }
 
-void DnsController::setProfile(const QString &profile) {
+void DnsController::setProfile(
+    const QString &profile) {
   if (m_busy) {
     return;
   }
-  if (!m_stateKnown || !m_enabled) {
-    m_errorMessage = "Enable NextDNS before changing its profile.";
+
+  if (!m_stateKnown) {
+    m_errorMessage =
+        "The resolver state is not known. Refresh and try again.";
     Q_EMIT stateChanged();
     return;
   }
-  const QString normalized = profile.trimmed().toLower();
+
+  const QString normalized =
+      profile.trimmed().toLower();
+
   if (!NetworkState::validNextDnsProfile(normalized)) {
-    m_errorMessage = "Enter a valid six-character NextDNS profile ID.";
+    m_errorMessage =
+        "Enter a six-character NextDNS profile ID using 0-9 or A-F.";
     Q_EMIT stateChanged();
     return;
   }
-  if (normalized == m_profile) {
-    Q_EMIT profileSaved();
-    return;
-  }
+
   QVariantMap arguments;
   arguments.insert("profile", normalized);
-  runAction("io.github.n16akbar.nextdnscontrol.setprofile", arguments, true);
+
+  runAction(
+      "io.github.n16akbar.nextdnscontrol.setprofile",
+      arguments,
+      true);
 }
