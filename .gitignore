@@ -7,3 +7,6 @@ Testing/
 *.user
 *.swp
 .idea/
+*.pre-*
+*.before-*
+.pre-*

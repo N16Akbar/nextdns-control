@@ -1,0 +1,17 @@
+<?xml version='1.0' encoding='utf-8'?>
+<component type="addon">
+  <id>io.github.n16akbar.nextdnscontrol</id>
+  <metadata_license>CC0-1.0</metadata_license>
+  <project_license>MIT</project_license>
+  <developer id="io.github.n16akbar">
+    <name>NextDNS Switcher</name>
+  </developer>
+  <name>NextDNS Switcher</name>
+  <summary>Control NextDNS from the Plasma panel</summary>
+  <description>
+    <p>Switch between NextDNS and the default network DNS and manage the active NextDNS profile ID.</p>
+  </description>
+  <url type="homepage">https://github.com/N16Akbar/nextdns-control</url>
+  <url type="bugtracker">https://github.com/N16Akbar/nextdns-control/issues</url>
+  <extends>org.kde.plasmashell</extends>
+</component>

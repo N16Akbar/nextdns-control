@@ -81,4 +81,7 @@ if(BUILD_TESTING)
     add_test(NAME networkstatetest COMMAND networkstatetest)
 endif()
 
+install(FILES io.github.n16akbar.nextdnscontrol.metainfo.xml
+    DESTINATION ${KDE_INSTALL_METAINFODIR}
+)
 plasma_install_package(package io.github.n16akbar.nextdnscontrol)

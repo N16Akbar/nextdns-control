@@ -1,12 +1,20 @@
 {
     "KPlugin": {
-        "Authors": [{"Name": "N16Akbar"}],
+        "Authors": [
+            {
+                "Name": "N16Akbar"
+            }
+        ],
         "Category": "System Information",
-        "Description": "Switches between NextDNS and native network DNS.",
+        "Description": "Switch between NextDNS and the default network DNS, and manage the active NextDNS profile ID.",
         "Icon": "preferences-system-network-server-dns",
         "Id": "io.github.n16akbar.nextdnscontrol",
-        "Name": "NextDNS Control",
-        "Version": "1.0"
+        "Name": "NextDNS Switcher",
+        "Version": "1.0.0",
+        "License": "MIT",
+        "EnabledByDefault": true,
+        "Website": "https://github.com/N16Akbar/nextdns-control",
+        "BugReportUrl": "https://github.com/N16Akbar/nextdns-control/issues"
     },
     "X-Plasma-API-Minimum-Version": "6.0",
     "X-Plasma-NotificationAreaCategory": "SystemServices",
