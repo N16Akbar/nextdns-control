@@ -1,6 +1,6 @@
 # NextDNS Switcher
 
-A Plasma 6 widget for switching between a NextDNS profile and the DNS
+KDE Plasma 6 widget for switching between a NextDNS profile and the DNS
 servers provided by the active network connection.
 
 ## Requirements
@@ -19,3 +19,4 @@ cmake -S . -B build -G Ninja \
 
 cmake --build build
 sudo cmake --install build
+```
