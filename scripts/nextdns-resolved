@@ -15,41 +15,41 @@ lock_file=/run/nextdns-control-resolved.lock
 self=/usr/lib64/libexec/nextdns-control-resolved
 
 die() {
-  printf 'nextdns-control-resolved: %s\n' "$*" >&2
-  exit 1
+    printf 'nextdns-control-resolved: %s\n' "$*" >&2
+    exit 1
 }
 
 valid_profile() {
-  [[ ${1-} =~ ^[0-9a-fA-F]{6}$ ]]
+    [[ ${1-} =~ ^[0-9a-fA-F]{6}$ ]]
 }
 
 read_profile() {
-  if [ -r "$profile_file" ]; then
-    tr -d '\r\n' < "$profile_file"
-  fi
+    if [ -r "$profile_file" ]; then
+        tr -d '\r\n' <"$profile_file"
+    fi
 }
 
 save_profile() {
-  local profile=$1 temporary
+    local profile=$1 temporary
 
-  valid_profile "$profile" ||
-    die "enter a six-character NextDNS profile ID using 0-9 or A-F"
+    valid_profile "$profile" ||
+        die "enter a six-character NextDNS profile ID using 0-9 or A-F"
 
-  install -d -m 0755 "$state_dir"
-  temporary=$(mktemp "$state_dir/profile.XXXXXX")
-  printf '%s\n' "${profile,,}" > "$temporary"
-  chmod 0644 "$temporary"
-  mv -- "$temporary" "$profile_file"
+    install -d -m 0755 "$state_dir"
+    temporary=$(mktemp "$state_dir/profile.XXXXXX")
+    printf '%s\n' "${profile,,}" >"$temporary"
+    chmod 0644 "$temporary"
+    mv -- "$temporary" "$profile_file"
 }
 
 dropin_is_managed() {
-  [ -f "$dropin_file" ] &&
-    grep -Fqx "$managed_marker" "$dropin_file"
+    [ -f "$dropin_file" ] &&
+        grep -Fqx "$managed_marker" "$dropin_file"
 }
 
 active_supported_connections() {
-  nmcli -t -f UUID,DEVICE,TYPE connection show --active |
-    awk -F: '
+    nmcli -t -f UUID,DEVICE,TYPE connection show --active |
+        awk -F: '
       $2 != "" &&
       ($3 == "802-3-ethernet" ||
        $3 == "802-11-wireless" ||
@@ -61,128 +61,128 @@ active_supported_connections() {
 }
 
 property_file_name() {
-  tr '.' '-'
+    tr '.' '-'
 }
 
 save_property() {
-  local uuid=$1 property=$2 directory=$3 name
+    local uuid=$1 property=$2 directory=$3 name
 
-  name=$(printf '%s' "$property" | property_file_name)
-  nmcli -g "$property" connection show uuid "$uuid" \
-    > "$directory/$name"
+    name=$(printf '%s' "$property" | property_file_name)
+    nmcli -g "$property" connection show uuid "$uuid" \
+        >"$directory/$name"
 }
 
 restore_property() {
-  local uuid=$1 property=$2 directory=$3 name value
+    local uuid=$1 property=$2 directory=$3 name value
 
-  name=$(printf '%s' "$property" | property_file_name)
+    name=$(printf '%s' "$property" | property_file_name)
 
-  [ -f "$directory/$name" ] ||
-    die "missing saved property $property for connection $uuid"
+    [ -f "$directory/$name" ] ||
+        die "missing saved property $property for connection $uuid"
 
-  value=$(cat "$directory/$name")
+    value=$(cat "$directory/$name")
 
-  nmcli connection modify uuid "$uuid" "$property" "$value"
+    nmcli connection modify uuid "$uuid" "$property" "$value"
 }
 
 save_native_connection() {
-  local uuid=$1 device=$2 directory
-  directory=$native_dir/$uuid
+    local uuid=$1 device=$2 directory
+    directory=$native_dir/$uuid
 
-  if [ -e "$directory/complete" ]; then
-    return 0
-  fi
+    if [ -e "$directory/complete" ]; then
+        return 0
+    fi
 
-  if [ -e "$directory" ]; then
-    die "incomplete native DNS backup exists for connection $uuid"
-  fi
+    if [ -e "$directory" ]; then
+        die "incomplete native DNS backup exists for connection $uuid"
+    fi
 
-  install -d -m 0700 "$directory"
+    install -d -m 0700 "$directory"
 
-  printf '%s\n' "$device" > "$directory/device"
-  save_property "$uuid" ipv4.ignore-auto-dns "$directory"
-  save_property "$uuid" ipv4.dns "$directory"
-  save_property "$uuid" ipv4.dns-search "$directory"
-  save_property "$uuid" ipv6.ignore-auto-dns "$directory"
-  save_property "$uuid" ipv6.dns "$directory"
-  save_property "$uuid" ipv6.dns-search "$directory"
+    printf '%s\n' "$device" >"$directory/device"
+    save_property "$uuid" ipv4.ignore-auto-dns "$directory"
+    save_property "$uuid" ipv4.dns "$directory"
+    save_property "$uuid" ipv4.dns-search "$directory"
+    save_property "$uuid" ipv6.ignore-auto-dns "$directory"
+    save_property "$uuid" ipv6.dns "$directory"
+    save_property "$uuid" ipv6.dns-search "$directory"
 
-  : > "$directory/complete"
+    : >"$directory/complete"
 }
 
 apply_connection() {
-  local uuid=$1 device=$2
+    local uuid=$1 device=$2
 
-  # DNS property changes must be applied in place. A full
-  # "connection up" disconnects Wi-Fi and can exceed the KAuth
-  # D-Bus reply timeout even after DNS restoration has succeeded.
-  if ! nmcli device reapply "$device"; then
-    die "NetworkManager could not apply the DNS settings in place on $device"
-  fi
+    # DNS property changes must be applied in place. A full
+    # "connection up" disconnects Wi-Fi and can exceed the KAuth
+    # D-Bus reply timeout even after DNS restoration has succeeded.
+    if ! nmcli device reapply "$device"; then
+        die "NetworkManager could not apply the DNS settings in place on $device"
+    fi
 
-  # Clear any stale per-link runtime resolver state, then ask
-  # NetworkManager to republish the current connection properties.
-  resolvectl revert "$device" || true
+    # Clear any stale per-link runtime resolver state, then ask
+    # NetworkManager to republish the current connection properties.
+    resolvectl revert "$device" || true
 
-  if ! nmcli device reapply "$device"; then
-    die "NetworkManager could not republish DNS settings on $device"
-  fi
+    if ! nmcli device reapply "$device"; then
+        die "NetworkManager could not republish DNS settings on $device"
+    fi
 }
 
 suppress_native_dns() {
-  local uuid=$1 device=$2
+    local uuid=$1 device=$2
 
-  save_native_connection "$uuid" "$device"
+    save_native_connection "$uuid" "$device"
 
-  nmcli connection modify uuid "$uuid" \
-    ipv4.ignore-auto-dns yes \
-    ipv4.dns "" \
-    ipv4.dns-search "" \
-    ipv6.ignore-auto-dns yes \
-    ipv6.dns "" \
-    ipv6.dns-search ""
+    nmcli connection modify uuid "$uuid" \
+        ipv4.ignore-auto-dns yes \
+        ipv4.dns "" \
+        ipv4.dns-search "" \
+        ipv6.ignore-auto-dns yes \
+        ipv6.dns "" \
+        ipv6.dns-search ""
 
-  apply_connection "$uuid" "$device"
+    apply_connection "$uuid" "$device"
 }
 
 restore_native_connection() {
-  local uuid=$1 directory device
-  directory=$native_dir/$uuid
+    local uuid=$1 directory device
+    directory=$native_dir/$uuid
 
-  [ -e "$directory/complete" ] ||
-    die "no native DNS backup exists for connection $uuid"
+    [ -e "$directory/complete" ] ||
+        die "no native DNS backup exists for connection $uuid"
 
-  device=$(cat "$directory/device")
+    device=$(cat "$directory/device")
 
-  restore_property "$uuid" ipv4.ignore-auto-dns "$directory"
-  restore_property "$uuid" ipv4.dns "$directory"
-  restore_property "$uuid" ipv4.dns-search "$directory"
-  restore_property "$uuid" ipv6.ignore-auto-dns "$directory"
-  restore_property "$uuid" ipv6.dns "$directory"
-  restore_property "$uuid" ipv6.dns-search "$directory"
+    restore_property "$uuid" ipv4.ignore-auto-dns "$directory"
+    restore_property "$uuid" ipv4.dns "$directory"
+    restore_property "$uuid" ipv4.dns-search "$directory"
+    restore_property "$uuid" ipv6.ignore-auto-dns "$directory"
+    restore_property "$uuid" ipv6.dns "$directory"
+    restore_property "$uuid" ipv6.dns-search "$directory"
 
-  if nmcli -t -f UUID connection show --active |
-      grep -Fqx "$uuid"; then
-    apply_connection "$uuid" "$device"
-  fi
+    if nmcli -t -f UUID connection show --active |
+        grep -Fqx "$uuid"; then
+        apply_connection "$uuid" "$device"
+    fi
 }
 
 write_dropin() {
-  local profile=$1 temporary tls_name
+    local profile=$1 temporary tls_name
 
-  valid_profile "$profile" ||
-    die "the NextDNS profile ID is not configured"
+    valid_profile "$profile" ||
+        die "the NextDNS profile ID is not configured"
 
-  if [ -e "$dropin_file" ] && ! dropin_is_managed; then
-    die "refusing to replace unmanaged file: $dropin_file"
-  fi
+    if [ -e "$dropin_file" ] && ! dropin_is_managed; then
+        die "refusing to replace unmanaged file: $dropin_file"
+    fi
 
-  tls_name=${profile,,}.dns.nextdns.io
+    tls_name=${profile,,}.dns.nextdns.io
 
-  install -d -m 0755 "$dropin_dir"
-  temporary=$(mktemp "$dropin_dir/90-nextdns-control.conf.XXXXXX")
+    install -d -m 0755 "$dropin_dir"
+    temporary=$(mktemp "$dropin_dir/90-nextdns-control.conf.XXXXXX")
 
-  cat > "$temporary" <<EOF
+    cat >"$temporary" <<EOF
 $managed_marker
 [Resolve]
 DNS=45.90.28.0#$tls_name 45.90.30.0#$tls_name 2a07:a8c0::#$tls_name 2a07:a8c1::#$tls_name
@@ -191,18 +191,18 @@ Domains=~.
 DNSOverTLS=yes
 EOF
 
-  chmod 0644 "$temporary"
-  mv -- "$temporary" "$dropin_file"
+    chmod 0644 "$temporary"
+    mv -- "$temporary" "$dropin_file"
 }
 
 install_dispatcher() {
-  local temporary
+    local temporary
 
-  install -d -m 0755 /etc/NetworkManager/dispatcher.d
-  temporary=$(mktemp \
-    /etc/NetworkManager/dispatcher.d/90-nextdns-control.XXXXXX)
+    install -d -m 0755 /etc/NetworkManager/dispatcher.d
+    temporary=$(mktemp \
+        /etc/NetworkManager/dispatcher.d/90-nextdns-control.XXXXXX)
 
-  cat > "$temporary" <<EOF
+    cat >"$temporary" <<EOF
 #!/usr/bin/env bash
 set -o nounset
 
@@ -215,262 +215,262 @@ case "\${2-}" in
 esac
 EOF
 
-  chmod 0755 "$temporary"
-  mv -- "$temporary" "$dispatcher_file"
+    chmod 0755 "$temporary"
+    mv -- "$temporary" "$dispatcher_file"
 }
 
 remove_dispatcher() {
-  if [ -e "$dispatcher_file" ]; then
-    rm -f -- "$dispatcher_file"
-  fi
+    if [ -e "$dispatcher_file" ]; then
+        rm -f -- "$dispatcher_file"
+    fi
 }
 
 reload_resolver() {
-  systemctl restart systemd-resolved.service
-  resolvectl flush-caches
+    systemctl restart systemd-resolved.service
+    resolvectl flush-caches
 }
 
 link_has_dns_servers() {
-  local device=$1 output servers
+    local device=$1 output servers
 
-  output=$(resolvectl dns "$device" 2>/dev/null || true)
+    output=$(resolvectl dns "$device" 2>/dev/null || true)
 
-  # A link with no DNS servers is printed as:
-  # Link N (device):
-  # Remove that header and inspect only text after the first colon,
-  # including any wrapped continuation lines.
-  servers=$(printf '%s\n' "$output" |
-    sed '1s/^[^:]*:[[:space:]]*//')
+    # A link with no DNS servers is printed as:
+    # Link N (device):
+    # Remove that header and inspect only text after the first colon,
+    # including any wrapped continuation lines.
+    servers=$(printf '%s\n' "$output" |
+        sed '1s/^[^:]*:[[:space:]]*//')
 
-  [ -n "$(printf '%s' "$servers" | tr -d '[:space:]')" ]
+    [ -n "$(printf '%s' "$servers" | tr -d '[:space:]')" ]
 }
 
 exclusive_nextdns_state() {
-  local profile status pair uuid device ignore4 ignore6
+    local profile status pair uuid device ignore4 ignore6
 
-  profile=$(read_profile)
-  valid_profile "$profile" || return 1
-  dropin_is_managed || return 1
+    profile=$(read_profile)
+    valid_profile "$profile" || return 1
+    dropin_is_managed || return 1
 
-  status=$(resolvectl status 2>/dev/null || true)
+    status=$(resolvectl status 2>/dev/null || true)
 
-  grep -Fq "45.90.28.0#${profile,,}.dns.nextdns.io" \
-    <<< "$status" || return 1
+    grep -Fq "45.90.28.0#${profile,,}.dns.nextdns.io" \
+        <<<"$status" || return 1
 
-  grep -Fq "45.90.30.0#${profile,,}.dns.nextdns.io" \
-    <<< "$status" || return 1
+    grep -Fq "45.90.30.0#${profile,,}.dns.nextdns.io" \
+        <<<"$status" || return 1
 
-  grep -Eiq \
-    '(\+DNSOverTLS|DNSOverTLS[=:][[:space:]]*yes|DNS over TLS:[[:space:]]*yes)' \
-    <<< "$status" || return 1
+    grep -Eiq \
+        '(\+DNSOverTLS|DNSOverTLS[=:][[:space:]]*yes|DNS over TLS:[[:space:]]*yes)' \
+        <<<"$status" || return 1
 
-  while IFS='|' read -r uuid device; do
-    [ -n "$uuid" ] || continue
+    while IFS='|' read -r uuid device; do
+        [ -n "$uuid" ] || continue
 
-    ignore4=$(nmcli -g ipv4.ignore-auto-dns \
-      connection show uuid "$uuid")
-    ignore6=$(nmcli -g ipv6.ignore-auto-dns \
-      connection show uuid "$uuid")
+        ignore4=$(nmcli -g ipv4.ignore-auto-dns \
+            connection show uuid "$uuid")
+        ignore6=$(nmcli -g ipv6.ignore-auto-dns \
+            connection show uuid "$uuid")
 
-    [ "$ignore4" = yes ] || return 1
-    [ "$ignore6" = yes ] || return 1
+        [ "$ignore4" = yes ] || return 1
+        [ "$ignore6" = yes ] || return 1
 
-    if link_has_dns_servers "$device"; then
-      return 1
-    fi
-  done < <(active_supported_connections)
+        if link_has_dns_servers "$device"; then
+            return 1
+        fi
+    done < <(active_supported_connections)
 
-  return 0
+    return 0
 }
 
 resolved_query_with_retry() {
-  local name=$1 attempt output status
+    local name=$1 attempt output status
 
-  for attempt in 1 2 3 4 5; do
-    status=0
-    output=$(resolvectl query "$name" 2>&1) || status=$?
+    for attempt in 1 2 3 4 5; do
+        status=0
+        output=$(resolvectl query "$name" 2>&1) || status=$?
 
-    if [ "$status" -eq 0 ]; then
-      printf '%s\n' "$output"
-      return 0
-    fi
+        if [ "$status" -eq 0 ]; then
+            printf '%s\n' "$output"
+            return 0
+        fi
 
-    printf 'resolvectl query attempt %s failed: %s\n' \
-      "$attempt" "$output" >&2
+        printf 'resolvectl query attempt %s failed: %s\n' \
+            "$attempt" "$output" >&2
 
-    if [ "$attempt" -lt 5 ]; then
-      sleep "$attempt"
-    fi
-  done
+        if [ "$attempt" -lt 5 ]; then
+            sleep "$attempt"
+        fi
+    done
 
-  printf '%s\n' "$output" >&2
-  return "$status"
+    printf '%s\n' "$output" >&2
+    return "$status"
 }
 
 verify_nextdns() {
-  local profile=$1 status query uuid device
+    local profile=$1 status query uuid device
 
-  status=$(resolvectl status 2>&1) ||
-    die "systemd-resolved status could not be read"
+    status=$(resolvectl status 2>&1) ||
+        die "systemd-resolved status could not be read"
 
-  grep -Fq "45.90.28.0#${profile,,}.dns.nextdns.io" \
-    <<< "$status" ||
-    die "the primary profile-specific NextDNS resolver is not active"
+    grep -Fq "45.90.28.0#${profile,,}.dns.nextdns.io" \
+        <<<"$status" ||
+        die "the primary profile-specific NextDNS resolver is not active"
 
-  grep -Fq "45.90.30.0#${profile,,}.dns.nextdns.io" \
-    <<< "$status" ||
-    die "the secondary profile-specific NextDNS resolver is not active"
+    grep -Fq "45.90.30.0#${profile,,}.dns.nextdns.io" \
+        <<<"$status" ||
+        die "the secondary profile-specific NextDNS resolver is not active"
 
-  grep -Eiq \
-    '(\+DNSOverTLS|DNSOverTLS[=:][[:space:]]*yes|DNS over TLS:[[:space:]]*yes)' \
-    <<< "$status" ||
-    die "strict DNS-over-TLS is not active"
+    grep -Eiq \
+        '(\+DNSOverTLS|DNSOverTLS[=:][[:space:]]*yes|DNS over TLS:[[:space:]]*yes)' \
+        <<<"$status" ||
+        die "strict DNS-over-TLS is not active"
 
-  while IFS='|' read -r uuid device; do
-    [ -n "$uuid" ] || continue
+    while IFS='|' read -r uuid device; do
+        [ -n "$uuid" ] || continue
 
-    if link_has_dns_servers "$device"; then
-      resolvectl dns "$device" >&2 || true
-      die "native DNS is still active on $device"
-    fi
-  done < <(active_supported_connections)
+        if link_has_dns_servers "$device"; then
+            resolvectl dns "$device" >&2 || true
+            die "native DNS is still active on $device"
+        fi
+    done < <(active_supported_connections)
 
-  resolvectl flush-caches
+    resolvectl flush-caches
 
-  query=$(resolved_query_with_retry example.com) ||
-    die "the strict DNS-over-TLS query failed after five attempts"
+    query=$(resolved_query_with_retry example.com) ||
+        die "the strict DNS-over-TLS query failed after five attempts"
 
-  printf '%s\n' "$query"
+    printf '%s\n' "$query"
 
-  grep -Eiq \
-    'Data was acquired via local or encrypted transport:[[:space:]]*yes|Protocol:[[:space:]]*(DNS-over-TLS|DNS over TLS|DoT)' \
-    <<< "$query" ||
-    die "the query did not confirm encrypted DNS transport"
+    grep -Eiq \
+        'Data was acquired via local or encrypted transport:[[:space:]]*yes|Protocol:[[:space:]]*(DNS-over-TLS|DNS over TLS|DoT)' \
+        <<<"$query" ||
+        die "the query did not confirm encrypted DNS transport"
 }
 
 verify_native() {
-  local pair uuid device native_found=false
+    local pair uuid device native_found=false
 
-  [ ! -e "$dropin_file" ] ||
-    die "the NextDNS resolved drop-in still exists"
+    [ ! -e "$dropin_file" ] ||
+        die "the NextDNS resolved drop-in still exists"
 
-  resolvectl flush-caches
+    resolvectl flush-caches
 
-  while IFS='|' read -r uuid device; do
-    [ -n "$uuid" ] || continue
+    while IFS='|' read -r uuid device; do
+        [ -n "$uuid" ] || continue
 
-    if link_has_dns_servers "$device"; then
-      native_found=true
-      printf '%s\n' "Native DNS on $device:"
-      resolvectl dns "$device"
-    fi
-  done < <(active_supported_connections)
+        if link_has_dns_servers "$device"; then
+            native_found=true
+            printf '%s\n' "Native DNS on $device:"
+            resolvectl dns "$device"
+        fi
+    done < <(active_supported_connections)
 
-  [ "$native_found" = true ] ||
-    die "no native DNS servers were restored on active connections"
+    [ "$native_found" = true ] ||
+        die "no native DNS servers were restored on active connections"
 
-  resolvectl query example.com >/dev/null ||
-    die "native DNS resolution failed"
+    resolvectl query example.com >/dev/null ||
+        die "native DNS resolution failed"
 }
 
 reconcile_nextdns() {
-  local pair uuid device found=false
+    local pair uuid device found=false
 
-  install -d -m 0700 "$native_dir"
-  : > "$active_uuid_file"
+    install -d -m 0700 "$native_dir"
+    : >"$active_uuid_file"
 
-  while IFS='|' read -r uuid device; do
-    [ -n "$uuid" ] || continue
-    found=true
-    printf '%s\n' "$uuid" >> "$active_uuid_file"
-    suppress_native_dns "$uuid" "$device"
-  done < <(active_supported_connections)
+    while IFS='|' read -r uuid device; do
+        [ -n "$uuid" ] || continue
+        found=true
+        printf '%s\n' "$uuid" >>"$active_uuid_file"
+        suppress_native_dns "$uuid" "$device"
+    done < <(active_supported_connections)
 
-  [ "$found" = true ] ||
-    die "no active Ethernet or Wi-Fi connection was found"
+    [ "$found" = true ] ||
+        die "no active Ethernet or Wi-Fi connection was found"
 }
 
 activate() {
-  local profile previous_dropin rollback_required=true
+    local profile previous_dropin rollback_required=true
 
-  profile=$(read_profile)
-  valid_profile "$profile" ||
-    die "the NextDNS profile ID is not configured"
+    profile=$(read_profile)
+    valid_profile "$profile" ||
+        die "the NextDNS profile ID is not configured"
 
-  previous_dropin=
+    previous_dropin=
 
-  if dropin_is_managed; then
-    previous_dropin=$(cat "$dropin_file")
-  fi
-
-  reconcile_nextdns
-  write_dropin "$profile"
-  install_dispatcher
-  reload_resolver
-
-  if ( verify_nextdns "$profile" ); then
-    rollback_required=false
-  fi
-
-  if [ "$rollback_required" = true ]; then
-    if [ -n "$previous_dropin" ]; then
-      printf '%s\n' "$previous_dropin" > "$dropin_file"
-    else
-      rm -f -- "$dropin_file"
+    if dropin_is_managed; then
+        previous_dropin=$(cat "$dropin_file")
     fi
 
-    remove_dispatcher
+    reconcile_nextdns
+    write_dropin "$profile"
+    install_dispatcher
+    reload_resolver
 
-    if [ -d "$native_dir" ]; then
-      for directory in "$native_dir"/*; do
-        [ -e "$directory/complete" ] || continue
-        restore_native_connection "$(basename "$directory")"
-      done
+    if (verify_nextdns "$profile"); then
+        rollback_required=false
     fi
 
-    reload_resolver || true
-    die "NextDNS activation failed; native DNS was restored"
-  fi
+    if [ "$rollback_required" = true ]; then
+        if [ -n "$previous_dropin" ]; then
+            printf '%s\n' "$previous_dropin" >"$dropin_file"
+        else
+            rm -f -- "$dropin_file"
+        fi
+
+        remove_dispatcher
+
+        if [ -d "$native_dir" ]; then
+            for directory in "$native_dir"/*; do
+                [ -e "$directory/complete" ] || continue
+                restore_native_connection "$(basename "$directory")"
+            done
+        fi
+
+        reload_resolver || true
+        die "NextDNS activation failed; native DNS was restored"
+    fi
 }
 
 deactivate() {
-  local directory
+    local directory
 
-  if [ -e "$dropin_file" ] && ! dropin_is_managed; then
-    die "refusing to remove unmanaged file: $dropin_file"
-  fi
+    if [ -e "$dropin_file" ] && ! dropin_is_managed; then
+        die "refusing to remove unmanaged file: $dropin_file"
+    fi
 
-  remove_dispatcher
-  rm -f -- "$dropin_file"
+    remove_dispatcher
+    rm -f -- "$dropin_file"
 
-  if [ -d "$native_dir" ]; then
-    for directory in "$native_dir"/*; do
-      [ -e "$directory/complete" ] || continue
-      restore_native_connection "$(basename "$directory")"
-    done
-  fi
+    if [ -d "$native_dir" ]; then
+        for directory in "$native_dir"/*; do
+            [ -e "$directory/complete" ] || continue
+            restore_native_connection "$(basename "$directory")"
+        done
+    fi
 
-  reload_resolver
-  verify_native
+    reload_resolver
+    verify_native
 }
 
 reconcile() {
-  if ! dropin_is_managed; then
-    return 0
-  fi
+    if ! dropin_is_managed; then
+        return 0
+    fi
 
-  reconcile_nextdns
-  reload_resolver
+    reconcile_nextdns
+    reload_resolver
 }
 
 status_command() {
-  if exclusive_nextdns_state; then
-    printf '%s\n' 'running'
-  else
-    printf '%s\n' 'stopped'
-  fi
+    if exclusive_nextdns_state; then
+        printf '%s\n' 'running'
+    else
+        printf '%s\n' 'stopped'
+    fi
 
-  return 0
+    return 0
 }
 
 # Unprivileged read-only command fast path
@@ -479,88 +479,88 @@ status_command() {
 readonly_command=${1-}
 
 case "$readonly_command" in
-  status)
-    status_command
-    exit 0
-    ;;
+    status)
+        status_command
+        exit 0
+        ;;
 
-  config)
-    if [ "${2-}" != set ]; then
-      profile=$(read_profile)
-      printf 'profile %s\n' "$profile"
-      exit 0
-    fi
-    ;;
+    config)
+        if [ "${2-}" != set ]; then
+            profile=$(read_profile)
+            printf 'profile %s\n' "$profile"
+            exit 0
+        fi
+        ;;
 esac
 
 exec 9>"$lock_file"
 
 if ! flock -n 9; then
-  if [ "${1-}" = reconcile ]; then
-    exit 0
-  fi
-  die "another NextDNS change is already in progress"
+    if [ "${1-}" = reconcile ]; then
+        exit 0
+    fi
+    die "another NextDNS change is already in progress"
 fi
 
 command_name=${1-}
 
 case "$command_name" in
-  config)
-    if [ "${2-}" = set ]; then
-      value=${3-}
+    config)
+        if [ "${2-}" = set ]; then
+            value=${3-}
 
-      case "$value" in
-        -profile=*)
-          profile=${value#-profile=}
-          ;;
-        *)
-          die "unsupported config argument: $value"
-          ;;
-      esac
+            case "$value" in
+                -profile=*)
+                    profile=${value#-profile=}
+                    ;;
+                *)
+                    die "unsupported config argument: $value"
+                    ;;
+            esac
 
-      was_active=false
+            was_active=false
 
-      if dropin_is_managed; then
-        was_active=true
-      fi
+            if dropin_is_managed; then
+                was_active=true
+            fi
 
-      save_profile "$profile"
+            save_profile "$profile"
 
-      if [ "$was_active" = true ]; then
+            if [ "$was_active" = true ]; then
+                activate
+            fi
+        else
+            profile=$(read_profile)
+            printf 'profile %s\n' "$profile"
+        fi
+        ;;
+
+    status)
+        status_command
+        ;;
+
+    start)
+        systemctl is-active --quiet systemd-resolved.service ||
+            systemctl start systemd-resolved.service
+        ;;
+
+    activate | restart)
         activate
-      fi
-    else
-      profile=$(read_profile)
-      printf 'profile %s\n' "$profile"
-    fi
-    ;;
+        ;;
 
-  status)
-    status_command
-    ;;
+    deactivate)
+        deactivate
+        ;;
 
-  start)
-    systemctl is-active --quiet systemd-resolved.service ||
-      systemctl start systemd-resolved.service
-    ;;
+    reconcile)
+        reconcile
+        ;;
 
-  activate|restart)
-    activate
-    ;;
+    stop)
+        :
+        ;;
 
-  deactivate)
-    deactivate
-    ;;
-
-  reconcile)
-    reconcile
-    ;;
-
-  stop)
-    :
-    ;;
-
-  *)
-    die "unsupported command: ${command_name:-<empty>}"
-    ;;
+    *)
+        die "unsupported command: ${command_name:-<empty>}"
+        ;;
 esac

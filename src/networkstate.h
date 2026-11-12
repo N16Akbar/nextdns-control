@@ -5,8 +5,8 @@
 
 namespace NetworkState {
 struct ModeState {
-  bool enabled;
-  bool mismatch;
+    bool enabled;
+    bool mismatch;
 };
 
 QString defaultDevice(const QString &routeOutput);
@@ -25,4 +25,4 @@ QString unsupportedDeviceMessage(const QString &type);
 bool activeState(const QString &value, bool *state);
 ModeState modeState(bool serviceActive, bool localDns);
 QString mismatchMessage(bool serviceActive, bool localDns);
-}
+} // namespace NetworkState
