@@ -16,11 +16,9 @@ PlasmoidItem {
     Plasmoid.icon: controller.enabled ? "security-high-symbolic" : "security-low-symbolic"
     toolTipMainText: "NextDNS Switcher"
     toolTipSubText: controller.busy ? "Changing DNS mode..." : controller.errorMessage.length > 0
-                                      ? controller.errorMessage : controller.warningMessage.length
-                                        > 0 ? controller.warningMessage : !controller.stateKnown
-                                              ? "DNS mode could not be determined" :
-                                                controller.enabled ? "Using NextDNS" :
-                                                                     "Using default network DNS"
+                                      ? controller.errorMessage : !controller.stateKnown
+                                        ? "DNS mode could not be determined" : controller.enabled
+                                          ? "Using NextDNS" : "Using default network DNS"
 
     Notification {
         id: operationNotification
@@ -169,14 +167,6 @@ PlasmoidItem {
                 visible: controller.errorMessage.length > 0
                 type: Kirigami.MessageType.Error
                 text: controller.errorMessage
-            }
-
-            Kirigami.InlineMessage {
-                Layout.fillWidth: true
-                Layout.margins: Kirigami.Units.smallSpacing
-                visible: controller.warningMessage.length > 0
-                type: Kirigami.MessageType.Warning
-                text: controller.warningMessage
             }
 
             PlasmaComponents.BusyIndicator {

@@ -18,7 +18,6 @@ class DnsController : public QObject {
     Q_PROPERTY(QString profile READ profile NOTIFY stateChanged)
     Q_PROPERTY(QString dnsSummary READ dnsSummary NOTIFY stateChanged)
     Q_PROPERTY(QString errorMessage READ errorMessage NOTIFY stateChanged)
-    Q_PROPERTY(QString warningMessage READ warningMessage NOTIFY stateChanged)
 
   public:
     explicit DnsController(QObject *parent = nullptr);
@@ -29,7 +28,6 @@ class DnsController : public QObject {
     QString profile() const;
     QString dnsSummary() const;
     QString errorMessage() const;
-    QString warningMessage() const;
 
     Q_INVOKABLE void refresh();
     Q_INVOKABLE void setEnabled(bool enabled);
@@ -47,7 +45,7 @@ class DnsController : public QObject {
     void runAction(const QString &name, const QVariantMap &arguments, bool profileAction);
     void refreshMode();
     void refreshLiveDns(bool serviceActive, const QString &device, const QString &resolvedError);
-    void finishRefresh(bool serviceActive, const QString &dnsServers);
+    void finishRefresh(bool enabled, const QString &dnsServers);
     void failRefresh(const QString &errorMessage);
 
     bool m_enabled = false;
@@ -57,6 +55,5 @@ class DnsController : public QObject {
     QString m_dnsSummary;
     QString m_profileError;
     QString m_errorMessage;
-    QString m_warning;
     QProcess *m_process = nullptr;
 };

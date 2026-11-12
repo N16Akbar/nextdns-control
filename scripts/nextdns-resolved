@@ -6,7 +6,6 @@ set -o pipefail
 state_dir=/var/lib/nextdns-control
 profile_file=$state_dir/profile
 native_dir=$state_dir/native-connections
-active_uuid_file=$state_dir/active-connection-uuids
 dropin_dir=/etc/systemd/resolved.conf.d
 dropin_file=$dropin_dir/90-nextdns-control.conf
 dispatcher_file=/etc/NetworkManager/dispatcher.d/90-nextdns-control
@@ -111,7 +110,7 @@ save_native_connection() {
 }
 
 apply_connection() {
-    local uuid=$1 device=$2
+    local device=$1
 
     # DNS property changes must be applied in place. A full
     # "connection up" disconnects Wi-Fi and can exceed the KAuth
@@ -142,7 +141,7 @@ suppress_native_dns() {
         ipv6.dns "" \
         ipv6.dns-search ""
 
-    apply_connection "$uuid" "$device"
+    apply_connection "$device"
 }
 
 restore_native_connection() {
@@ -163,7 +162,7 @@ restore_native_connection() {
 
     if nmcli -t -f UUID connection show --active |
         grep -Fqx "$uuid"; then
-        apply_connection "$uuid" "$device"
+        apply_connection "$device"
     fi
 }
 
@@ -246,7 +245,7 @@ link_has_dns_servers() {
 }
 
 exclusive_nextdns_state() {
-    local profile status pair uuid device ignore4 ignore6
+    local profile status uuid device ignore4 ignore6
 
     profile=$(read_profile)
     valid_profile "$profile" || return 1
@@ -349,7 +348,7 @@ verify_nextdns() {
 }
 
 verify_native() {
-    local pair uuid device native_found=false
+    local uuid device native_found=false
 
     [ ! -e "$dropin_file" ] ||
         die "the NextDNS resolved drop-in still exists"
@@ -374,15 +373,13 @@ verify_native() {
 }
 
 reconcile_nextdns() {
-    local pair uuid device found=false
+    local uuid device found=false
 
     install -d -m 0700 "$native_dir"
-    : >"$active_uuid_file"
 
     while IFS='|' read -r uuid device; do
         [ -n "$uuid" ] || continue
         found=true
-        printf '%s\n' "$uuid" >>"$active_uuid_file"
         suppress_native_dns "$uuid" "$device"
     done < <(active_supported_connections)
 

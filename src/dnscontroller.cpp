@@ -34,8 +34,6 @@ QString DnsController::dnsSummary() const { return m_dnsSummary; }
 
 QString DnsController::errorMessage() const { return m_errorMessage; }
 
-QString DnsController::warningMessage() const { return m_warning; }
-
 void DnsController::runProcess(const QString &program, const QStringList &arguments,
                                ProcessCallback callback) {
     QProcess *process = new QProcess(this);
@@ -95,7 +93,6 @@ void DnsController::refresh() {
     m_busy = true;
     m_errorMessage.clear();
     m_profileError.clear();
-    m_warning.clear();
     Q_EMIT stateChanged();
     runProcess(NEXTDNS_EXECUTABLE, {"config"},
                [this](bool success, const QString &output, const QString &error) {
@@ -189,13 +186,10 @@ void DnsController::refreshLiveDns(bool serviceActive, const QString &device,
         });
 }
 
-void DnsController::finishRefresh(bool serviceActive, const QString &dnsServers) {
-    const bool localDns = NetworkState::usesNextDns(dnsServers);
-    const NetworkState::ModeState state = NetworkState::modeState(serviceActive, localDns);
+void DnsController::finishRefresh(bool enabled, const QString &dnsServers) {
     m_dnsSummary = NetworkState::dnsSummary(dnsServers);
-    m_enabled = state.enabled;
+    m_enabled = enabled;
     m_stateKnown = true;
-    m_warning = NetworkState::mismatchMessage(serviceActive, localDns);
     m_errorMessage = m_profileError;
     m_busy = false;
     Q_EMIT stateChanged();
@@ -203,7 +197,6 @@ void DnsController::finishRefresh(bool serviceActive, const QString &dnsServers)
 
 void DnsController::failRefresh(const QString &errorMessage) {
     m_errorMessage = errorMessage;
-    m_warning.clear();
     m_stateKnown = false;
     m_busy = false;
     Q_EMIT stateChanged();
@@ -213,7 +206,6 @@ void DnsController::runAction(const QString &name, const QVariantMap &arguments,
                               bool profileAction) {
     m_busy = true;
     m_errorMessage.clear();
-    m_warning.clear();
     Q_EMIT stateChanged();
     QScreen *screen = QGuiApplication::primaryScreen();
     auto *authParent = new QWindow();

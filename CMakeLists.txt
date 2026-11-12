@@ -22,7 +22,6 @@ find_package(Plasma 6.0 REQUIRED COMPONENTS Plasma)
 set(NEXTDNS_EXECUTABLE "${CMAKE_INSTALL_FULL_LIBEXECDIR}/nextdns-control-resolved")
 find_program(NMCLI_EXECUTABLE NAMES nmcli REQUIRED)
 find_program(IP_EXECUTABLE NAMES ip REQUIRED)
-find_program(SYSTEMCTL_EXECUTABLE NAMES systemctl REQUIRED)
 find_program(RESOLVECTL_EXECUTABLE NAMES resolvectl REQUIRED)
 
 configure_file(src/paths.h.in generated/paths.h @ONLY)
